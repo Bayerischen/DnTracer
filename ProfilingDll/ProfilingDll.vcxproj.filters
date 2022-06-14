@@ -1,0 +1,160 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Header Files\SigParser">
+      <UniqueIdentifier>{1ac38d90-c105-4eb3-ba87-1f0ffb8c05f9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Atl">
+      <UniqueIdentifier>{b9186258-064e-42b6-b2b4-b8dc3cf49590}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\SigParser">
+      <UniqueIdentifier>{cf592605-18f0-40b8-9041-ea919abf925a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Atl">
+      <UniqueIdentifier>{c1ba9db2-0478-484c-accd-189e7d794fbf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Generated Files">
+      <UniqueIdentifier>{0a735f8f-508c-426d-ae4b-098e9b2a95e5}</UniqueIdentifier>
+      <SourceControlFiles>False</SourceControlFiles>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ProfilingDll_i.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="pch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ProfilerCallback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FnCallback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Tracer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Logger.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeMethod.h">
+      <Filter>Header Files\SigParser</Filter>
+    </ClInclude>
+    <ClInclude Include="SigParser.h">
+      <Filter>Header Files\SigParser</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeInfo.h">
+      <Filter>Header Files\SigParser</Filter>
+    </ClInclude>
+    <ClInclude Include="dllmain.h">
+      <Filter>Header Files\Atl</Filter>
+    </ClInclude>
+    <ClInclude Include="framework.h">
+      <Filter>Header Files\Atl</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource.h">
+      <Filter>Header Files\Atl</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>Header Files\Atl</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeArray.h">
+      <Filter>Header Files\SigParser</Filter>
+    </ClInclude>
+    <ClInclude Include="SigDef.h">
+      <Filter>Header Files\SigParser</Filter>
+    </ClInclude>
+    <ClInclude Include="SigField.h">
+      <Filter>Header Files\SigParser</Filter>
+    </ClInclude>
+    <ClInclude Include="SigLocals.h">
+      <Filter>Header Files\SigParser</Filter>
+    </ClInclude>
+    <ClInclude Include="SigProperty.h">
+      <Filter>Header Files\SigParser</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ProfilingDll_i.c">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="pch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ProfilerCallback.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FnCallback.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Tracer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Logger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SigParser.cpp">
+      <Filter>Source Files\SigParser</Filter>
+    </ClCompile>
+    <ClCompile Include="TypeMethod.cpp">
+      <Filter>Source Files\SigParser</Filter>
+    </ClCompile>
+    <ClCompile Include="TypeInfo.cpp">
+      <Filter>Source Files\SigParser</Filter>
+    </ClCompile>
+    <ClCompile Include="ProfilingDll.cpp">
+      <Filter>Source Files\Atl</Filter>
+    </ClCompile>
+    <ClCompile Include="dllmain.cpp">
+      <Filter>Source Files\Atl</Filter>
+    </ClCompile>
+    <ClCompile Include="TypeArray.cpp">
+      <Filter>Source Files\SigParser</Filter>
+    </ClCompile>
+    <ClCompile Include="SigField.cpp">
+      <Filter>Source Files\SigParser</Filter>
+    </ClCompile>
+    <ClCompile Include="SigLocals.cpp">
+      <Filter>Source Files\SigParser</Filter>
+    </ClCompile>
+    <ClCompile Include="SigProperty.cpp">
+      <Filter>Source Files\SigParser</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ProfilingDll.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ProfilingDll.rgs">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="ProfilingDll.def">
+      <Filter>Source Files\Atl</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="ProfilingDll.idl">
+      <Filter>Source Files\Atl</Filter>
+    </Midl>
+  </ItemGroup>
+</Project>

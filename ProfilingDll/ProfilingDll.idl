@@ -1,0 +1,35 @@
+﻿// ProfilingDll.idl: ProfilingDll 的 IDL 源
+//
+
+// 此文件将由 MIDL 工具处理以
+// 生成类型库(ProfilingDll.tlb)和封送处理代码。
+
+import "oaidl.idl";
+import "ocidl.idl";
+
+[
+	uuid(82db5741-32f0-4e2c-b2d4-16c821d03422),
+	version(1.0),
+]
+
+interface INetProfiler : IUnknown {
+};
+[
+	uuid(e0145544-414d-487e-9219-178b87ff0aaa),
+	version(1.0),
+	helpstring("NetProfiler 1.0 Type Library")
+]
+
+library ProfilingDllLib
+{
+	importlib("stdole2.tlb");
+	[
+		uuid(b45048d5-6f44-4fbe-ae88-b468a5e4927a),
+		helpstring("Profiler Class")
+	]
+	coclass NetProfiler
+	{
+		[default] interface IUnknown;
+	};
+};
+
