@@ -41,7 +41,7 @@ int Utils::GetClassNameByClassId(ICorProfilerInfo2* info, ClassID classId, wchar
     
     buffer[length] = 0;
     *output = buffer;
-    return length; //no way the length is longer than 0xFFFFFFFF right?
+    return length; //no way the length is longer than 0xFFFFFFFF right? should be safe to return ULONG
 }
 
 
@@ -122,6 +122,8 @@ void Utils::GetParamterValueStr(COR_PRF_FUNCTION_ARGUMENT_RANGE* range, sig_elem
     byte** ptr = NULL;
     byte* strPtr = NULL;
 
+    HANDLE logFile = NULL;
+
     switch (type)
     {
     case ELEMENT_TYPE_BOOLEAN: //bool
@@ -200,6 +202,9 @@ void Utils::GetParamterValueStr(COR_PRF_FUNCTION_ARGUMENT_RANGE* range, sig_elem
 
     case ELEMENT_TYPE_STRING: //string
         ptr = (byte**)range->startAddress;
+        if (*ptr == NULL)
+            outBuf[0] = 0;
+            return;
         strPtr = *ptr;
         strPtr = strPtr + sizeof(int*);
         strLen = *(long*)strPtr;

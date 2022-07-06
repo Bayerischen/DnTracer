@@ -22,7 +22,7 @@ void Tracer::Init()
 	iCorProfilerInfo->SetEventMask(COR_PRF_MONITOR_ENTERLEAVE| COR_PRF_ENABLE_FUNCTION_ARGS | COR_PRF_MONITOR_ASSEMBLY_LOADS | COR_PRF_MONITOR_MODULE_LOADS);
 	iCorProfilerInfo->SetEnterLeaveFunctionHooks2((FunctionEnter2*)&FnEnter, (FunctionLeave2*)FnLeave, (FunctionTailcall2*)FnTail);
 
-	//Sleep(4000);
+	Sleep(4000);
 }
 
 
@@ -51,11 +51,15 @@ void Tracer::ModuleLoaded(ModuleID moduleID)
 }
 
 
-void Tracer::PrintFuncInfo(FunctionID funcID, COR_PRF_FUNCTION_ARGUMENT_INFO* argumentInfo)
+void Tracer::PrintFuncInfo(FunctionID funcID, ClassID classID, COR_PRF_FUNCTION_ARGUMENT_INFO* argumentInfo)
 {
 	//get function name
 	wchar_t* funcName = NULL;
-	Utils::GetFunctionNameById(iCorProfilerInfo, funcID, &funcName);
+	int funcNameLen = Utils::GetFunctionNameById(iCorProfilerInfo, funcID, &funcName);
+
+	//get class name
+	wchar_t* className = NULL;
+	int classNameLen = Utils::GetClassNameByClassId(iCorProfilerInfo, classID, &className);
 
 	//whether print prefix tabs or not
 	char empty = 0;
@@ -84,16 +88,17 @@ void Tracer::PrintFuncInfo(FunctionID funcID, COR_PRF_FUNCTION_ARGUMENT_INFO* ar
 	TypeMethod* method = (TypeMethod*)typeInfo;
 
 	//create log buffer
-	//log: [prefix] [func_name] ( [param_type]:[param_value], ... )
-	char* logBuf = new char[callLevel + 1 + wcslen(funcName) + 16];
-	sprintf(logBuf, "%s%ls(", prefix, funcName);
+	//log: [prefix] [class_name].[func_name] ( [param_type]:[param_value], ... )
+	char* logBuf = new char[callLevel + 1 + classNameLen + 1 + funcNameLen + 16];
+	sprintf(logBuf, "%s%ls.%ls(", prefix, className, funcName);
 	string log;
 	log.assign(logBuf);
 	delete[] funcName;
+	delete[] className;
 	_freea(prefix);
 
 	//get paramter value by type
-	char* paramValue = new char[256];
+	char* paramValue = new char[256]{0};
 	for (int i = 0; i < method->paramCount; i++)
 	{
 		if (i >= (int)argumentInfo->numRanges)
@@ -128,20 +133,21 @@ void Tracer::FunctionEnter(FunctionID funcID, UINT_PTR clientData, COR_PRF_FRAME
 	//int nameLen = Utils::GetFunctionNameById(iCorProfilerInfo, funcID, &funcName);
 	//printf("%d %d enter %ls\n", callLevel, lastUserSpaceLevel, funcName);
 
-	//get module id
+	//get the id of module and class
 	ModuleID moduleID;
-	iCorProfilerInfo->GetFunctionInfo2(funcID, func, NULL, &moduleID, NULL, 0, NULL, NULL);
+	ClassID classID;
+	iCorProfilerInfo->GetFunctionInfo2(funcID, func, &classID, &moduleID, NULL, 0, NULL, NULL);
 
 	if (moduleID == mainModuleID) // in the main module
 	{
 		lastUserSpaceLevel = callLevel;
-		PrintFuncInfo(funcID, argumentInfo);
+		PrintFuncInfo(funcID, classID, argumentInfo);
 	}
 	else //not in the main module
 	{
 		int diff = callLevel - lastUserSpaceLevel;
 		if(diff == 0 || diff == 1) //calling external function from the main module, print it
-			PrintFuncInfo(funcID, argumentInfo);
+			PrintFuncInfo(funcID, classID, argumentInfo);
 	}
 }
 
