@@ -1,22 +1,17 @@
 #include "pch.h"
 #include <io.h>
 #include <fcntl.h>
+#include <windows.h>
 #include "Utils.h"
 #include "SigParser.h"
 
 using namespace std;
 
-int Utils::GetClassNameByObjectId(ICorProfilerInfo2* info, ObjectID objectId, wchar_t** output)
-{
-    ClassID classId;
-    if (info->GetClassFromObject(objectId, &classId) != S_OK)
-        return -1;
 
-    return Utils::GetClassNameByClassId(info, classId, output);
-}
+ULONG Utils::strLenOffset = 0;
+ULONG Utils::strBufOffset;
 
-
-int Utils::GetClassNameByClassId(ICorProfilerInfo2* info, ClassID classId, wchar_t** output)
+int Utils::GetClassNameByClassId(ICorProfilerInfo2* info, ClassID classId, wchar_t* buffer, ULONG bufSize)
 {
     ModuleID moduleId;
     mdTypeDef typeDefToken;
@@ -29,19 +24,15 @@ int Utils::GetClassNameByClassId(ICorProfilerInfo2* info, ClassID classId, wchar
     if (info->GetModuleMetaData(moduleId, ofRead, IID_IMetaDataImport, (IUnknown**)&metadata) != S_OK)
         return -1;
 
-    wchar_t* buffer;
+    //get actual length of class name
     ULONG length = 0;
-    metadata->GetTypeDefProps(typeDefToken, NULL, 0, &length, NULL, NULL); //get actual length of name
-    buffer = new wchar_t[length + 1];
-    hresult = metadata->GetTypeDefProps(typeDefToken, buffer, length, &length, NULL, NULL);
+    hresult = metadata->GetTypeDefProps(typeDefToken, buffer, bufSize, &length, NULL, NULL);
     metadata->Release();
 
     if (hresult != S_OK)
         return -1;
     
-    buffer[length] = 0;
-    *output = buffer;
-    return length; //no way the length is longer than 0xFFFFFFFF right? should be safe to return ULONG
+    return length; //no way the size is longer than 0x7FFFFFFF right? should be safe to return ULONG
 }
 
 
@@ -110,7 +101,10 @@ int Utils::GetModuleNameById(ICorProfilerInfo2* info, ModuleID moduleID, wchar_t
 //return value is the length of output
 void Utils::GetParamterValueStr(COR_PRF_FUNCTION_ARGUMENT_RANGE* range, sig_elem_type type, char* outBuf, int bufSize )
 {
-    char charValue;
+    size_t ptr;
+    char* charPtr;
+
+    wchar_t charValue;
     short shortValue;
     int intValue;
     INT64 longValue;
@@ -118,9 +112,11 @@ void Utils::GetParamterValueStr(COR_PRF_FUNCTION_ARGUMENT_RANGE* range, sig_elem
     double doubleValue;
 
     int cpyCount;
+    
+    size_t strPtr = 0;
     long strLen = 0;
-    byte** ptr = NULL;
-    byte* strPtr = NULL;
+    long* strLenPtr = NULL;
+    wchar_t* strBufPtr = NULL;
 
     HANDLE logFile = NULL;
 
@@ -145,9 +141,9 @@ void Utils::GetParamterValueStr(COR_PRF_FUNCTION_ARGUMENT_RANGE* range, sig_elem
         }
 
     case ELEMENT_TYPE_CHAR: //char
-        charValue = *(char*)range->startAddress;
-        outBuf[0] = charValue;
-        outBuf[1] = 0;
+        ptr = *(size_t*)range->startAddress;
+        outBuf[0] = *(char*)ptr;
+        outBuf[1] = '\0';
         return;
 
     case ELEMENT_TYPE_I1: //sbyte
@@ -200,22 +196,24 @@ void Utils::GetParamterValueStr(COR_PRF_FUNCTION_ARGUMENT_RANGE* range, sig_elem
         snprintf(outBuf, bufSize, "%f", doubleValue);
         return;
 
+
     case ELEMENT_TYPE_STRING: //string
-        ptr = (byte**)range->startAddress;
-        if (*ptr == NULL)
+        strPtr = *(size_t*)range->startAddress;
+        strLenPtr = (long*)(strPtr + strLenOffset);
+        strBufPtr = (wchar_t*)(strPtr + strBufOffset);
+        if (strLenPtr == NULL || strBufPtr == NULL || *strLenPtr <= 0)
+        {
             outBuf[0] = 0;
             return;
-        strPtr = *ptr;
-        strPtr = strPtr + sizeof(int*);
-        strLen = *(long*)strPtr;
-        strPtr += 4;
-        snprintf(outBuf, bufSize, "%ls", (wchar_t*)strPtr);
+        }
+       
+        strLen = *strLenPtr > bufSize ? bufSize : *strLenPtr;
+        snprintf(outBuf, bufSize, "%ls", strBufPtr);
         return;
 
+
     default:
-        cpyCount = bufSize > 11 ? 11 : bufSize - 1;
-        strncpy(outBuf, "not_support", cpyCount);
-        outBuf[cpyCount] = 0;
+        outBuf[0] = 0;
         return;
     }
 }
@@ -241,6 +239,39 @@ const char* Utils::GetMethodTypeName(sig_elem_type type)
     default:
         return "UNKNOWN";
     }
+}
+
+
+int Utils::TryGetStrFromRetRange(COR_PRF_FUNCTION_ARGUMENT_RANGE* retRange, wchar_t* buffer, ULONG bufSize)
+{
+    if (retRange->length != sizeof(size_t))
+        return -1;
+
+    SIZE_T readSize = 0;
+
+    size_t strObjPtr = *(size_t*)retRange->startAddress;
+    size_t strLenPtr = strObjPtr + strLenOffset;
+    size_t strBufPtr = strObjPtr + strBufOffset;
+    
+    //try to get string length
+    ULONG strLen = 0;
+    if (ReadProcessMemory(NULL, (LPVOID)strLenPtr, (LPVOID)&strLen, sizeof(long), &readSize) == FALSE || readSize != sizeof(long))
+        return -1;
+
+    //try to read string value
+    strLen *= 2; //wchar
+    strLen = strLen > bufSize ? bufSize : strLen;
+    if (ReadProcessMemory(NULL, (LPVOID)strBufPtr, buffer, strLen, &readSize) == FALSE || readSize != strLen)
+        return -1;
+
+    for (ULONG i = 0; i < strLen / 2; i++)
+    {
+        wchar_t c = *(wchar_t*)(buffer + i);
+        if ((c <= 0x20 && c != 0x0A) || c > 0x7E)
+            return -1;
+    }
+
+    return strLen;
 }
 
 

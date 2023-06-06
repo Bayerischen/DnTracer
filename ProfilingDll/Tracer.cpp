@@ -7,7 +7,7 @@
 
 using namespace std;
 
-Tracer::Tracer(ICorProfilerInfo2* info)
+Tracer::Tracer(ICorProfilerInfo3* info)
 {
 	logger = new Logger();
 	sigParser = new SigParser();
@@ -19,10 +19,10 @@ void Tracer::Init()
 {
 	Utils::RedirectIOToConsole();
 
-	iCorProfilerInfo->SetEventMask(COR_PRF_MONITOR_ENTERLEAVE| COR_PRF_ENABLE_FUNCTION_ARGS | COR_PRF_MONITOR_ASSEMBLY_LOADS | COR_PRF_MONITOR_MODULE_LOADS);
-	iCorProfilerInfo->SetEnterLeaveFunctionHooks2((FunctionEnter2*)&FnEnter, (FunctionLeave2*)FnLeave, (FunctionTailcall2*)FnTail);
+	iCorProfilerInfo->SetEventMask(COR_PRF_MONITOR_ENTERLEAVE| COR_PRF_ENABLE_FUNCTION_ARGS | COR_PRF_ENABLE_FUNCTION_RETVAL | COR_PRF_ENABLE_FRAME_INFO | COR_PRF_MONITOR_ASSEMBLY_LOADS | COR_PRF_MONITOR_MODULE_LOADS);
+	iCorProfilerInfo->SetEnterLeaveFunctionHooks3WithInfo((FunctionEnter3WithInfo*)&FnEnter, (FunctionLeave3WithInfo*)FnLeave, (FunctionTailcall3WithInfo*)FnTail);
 
-	Sleep(4000);
+	iCorProfilerInfo->GetStringLayout2(&Utils::strLenOffset, &Utils::strBufOffset);
 }
 
 
@@ -32,7 +32,7 @@ void Tracer::ModuleLoaded(ModuleID moduleID)
 	if (Utils::GetModuleNameById(iCorProfilerInfo, moduleID, &name) <= 0)
 		return;
 
-	logger->WriteLog("\nModule loaded: %ls\n", name);
+	logger->WriteFormat("\nModule loaded: %ls\n\n", name);
 
 	if ((name[0] == 'C' || name[0] == 'c') &&
 		(name[3] == 'W' || name[3] == 'w') &&
@@ -51,120 +51,193 @@ void Tracer::ModuleLoaded(ModuleID moduleID)
 }
 
 
-void Tracer::PrintFuncInfo(FunctionID funcID, ClassID classID, COR_PRF_FUNCTION_ARGUMENT_INFO* argumentInfo)
-{
-	//get function name
-	wchar_t* funcName = NULL;
-	int funcNameLen = Utils::GetFunctionNameById(iCorProfilerInfo, funcID, &funcName);
-
-	//get class name
-	wchar_t* className = NULL;
-	int classNameLen = Utils::GetClassNameByClassId(iCorProfilerInfo, classID, &className);
-
-	//whether print prefix tabs or not
-	char empty = 0;
-	char* prefix = &empty;
-	if (callLevel > 0)
-	{
-		prefix = (char*)_malloca(callLevel + 1);
-		if (prefix == NULL)
-			return;
-		for (int i = 0; i < callLevel; i++)
-			prefix[i] = '\t';
-		prefix[callLevel] = 0;
-	}
-
-	//read function signature and parse it
-	PCCOR_SIGNATURE signature;
-	ULONG sigSize = Utils::GetFunctionSig(iCorProfilerInfo, funcID, &signature);
-	if (sigSize == -1)
-		return;
-
-	//parse the method signature
-	TypeInfo* typeInfo = sigParser->Parse((sig_byte*)signature, sigSize);
-	sigParser->Reset();
-	if (typeInfo == NULL || typeInfo->type != ELEMENT_TYPE_FNPTR)
-		return;
-	TypeMethod* method = (TypeMethod*)typeInfo;
-
-	//create log buffer
-	//log: [prefix] [class_name].[func_name] ( [param_type]:[param_value], ... )
-	char* logBuf = new char[callLevel + 1 + classNameLen + 1 + funcNameLen + 16];
-	sprintf(logBuf, "%s%ls.%ls(", prefix, className, funcName);
-	string log;
-	log.assign(logBuf);
-	delete[] funcName;
-	delete[] className;
-	_freea(prefix);
-
-	//get paramter value by type
-	char* paramValue = new char[256]{0};
-	for (int i = 0; i < method->paramCount; i++)
-	{
-		if (i >= (int)argumentInfo->numRanges)
-			break;
-	
-		//get paramter value and type name
-		TypeInfo* paramType = method->paramTypes[i];
-		COR_PRF_FUNCTION_ARGUMENT_RANGE range = argumentInfo->ranges[i];
-		Utils::GetParamterValueStr(&range, paramType->type, paramValue, 256);
-		string typeName = paramType->GetTypeName();
-		
-		//append log
-		log.append(typeName);
-		log.append(1, ':');
-		log.append(paramValue);
-
-		if (i != method->paramCount - 1) // last param
-			log.append(", ");
-	}
-	log.append(1, ')');
-	logger->WriteLog(log.c_str());
-
-	delete method;
-}
-
-
-void Tracer::FunctionEnter(FunctionID funcID, UINT_PTR clientData, COR_PRF_FRAME_INFO func, COR_PRF_FUNCTION_ARGUMENT_INFO* argumentInfo)
+void Tracer::FunctionEnter(FunctionID funcID, COR_PRF_ELT_INFO eltInfo)
 {
 	callLevel++;
 
-	//wchar_t* funcName = NULL;
-	//int nameLen = Utils::GetFunctionNameById(iCorProfilerInfo, funcID, &funcName);
-	//printf("%d %d enter %ls\n", callLevel, lastUserSpaceLevel, funcName);
-
-	//get the id of module and class
-	ModuleID moduleID;
+	//get id of module and class
 	ClassID classID;
-	iCorProfilerInfo->GetFunctionInfo2(funcID, func, &classID, &moduleID, NULL, 0, NULL, NULL);
+	ModuleID moduleID;
+	iCorProfilerInfo->GetFunctionInfo(funcID, &classID, &moduleID, NULL);
 
-	if (moduleID == mainModuleID) // in the main module
+	int levelDiff = callLevel - lastUserSpaceLevel;
+	if (moduleID == mainModuleID || levelDiff == 0 || levelDiff == 1) // in the main module
 	{
-		lastUserSpaceLevel = callLevel;
-		PrintFuncInfo(funcID, classID, argumentInfo);
+		//get argument info
+		COR_PRF_FRAME_INFO frameInfo;
+		ULONG argInfoSize = 0;
+		COR_PRF_FUNCTION_ARGUMENT_INFO* argInfo = NULL;
+		HRESULT result = iCorProfilerInfo->GetFunctionEnter3Info(funcID, eltInfo, &frameInfo, &argInfoSize, argInfo); //get pArgumentInfo size
+		argInfo = (COR_PRF_FUNCTION_ARGUMENT_INFO*)malloc(argInfoSize);
+		if (argInfo == NULL)
+			return;
+		HRESULT result2 = iCorProfilerInfo->GetFunctionEnter3Info(funcID, eltInfo, &frameInfo, &argInfoSize, argInfo);
+
+		//get method token and metadata
+		mdMethodDef methodToken;
+		IMetaDataImport* metadata;
+		iCorProfilerInfo->GetTokenAndMetaDataFromFunction(funcID, IID_IMetaDataImport, (IUnknown**)&metadata, &methodToken);
+
+		//get class name, method name, method signature, signature size
+		wchar_t className[128] = { 0 };
+		wchar_t methodName[128] = { 0 };
+		PCCOR_SIGNATURE signature;
+		ULONG sigSize;
+		ULONG methodNameLen;
+		HRESULT methodPropResult = metadata->GetMethodProps(methodToken, NULL, methodName, sizeof(methodName) / sizeof(wchar_t), &methodNameLen, NULL, &signature, &sigSize, NULL, NULL);
+		if (methodPropResult != S_OK)
+			return;
+		ULONG  classNameLen = Utils::GetClassNameByClassId(iCorProfilerInfo, classID, className, sizeof(className) / sizeof(wchar_t));
+		if (classNameLen == -1)
+			return;
+
+		//parse the method signature
+		TypeInfo* typeInfo = sigParser->Parse((sig_byte*)signature, sigSize);
+		sigParser->Reset();
+		if (typeInfo == NULL || typeInfo->type != ELEMENT_TYPE_FNPTR)
+			return;
+		TypeMethod* typeMethod = (TypeMethod*)typeInfo;
+
+		//whether print prefix tabs or not
+		char prefix[64] = { '\t' };
+		if(callLevel >= 0)
+			prefix[callLevel] = 0;
+
+		//initialize log
+		size_t logBufSize = callLevel + 1 + classNameLen + 1 + methodNameLen + 16;
+		char* logBuf = new char[logBufSize];
+		snprintf(logBuf, logBufSize, "%s%ls.%ls(", prefix, className, methodName);
+		string log = logBuf;
+
+		if (argInfo->numRanges > 0)
+		{
+			//get parameter tokens
+			//HCORENUM hEnum = NULL;
+			//ULONG paramTokenCount;
+			//mdParamDef* paramTokens = new mdParamDef[argInfo->numRanges];
+			//metadata->EnumParams(&hEnum, methodToken, paramTokens, argInfo->numRanges, &paramTokenCount); //get parameter token count
+			/*for (int i = 0; i < argInfo->numRanges && i < paramTokenCount; i++)
+			{
+				COR_PRF_FUNCTION_ARGUMENT_RANGE range = argInfo->ranges[i];
+
+				ULONG paramIdx;
+				wchar_t paramName[128];
+				metadata->GetParamProps(paramTokens[i], NULL, &paramIdx, paramName, 128, NULL, NULL, NULL, NULL, NULL);
+				printf("%d:%s, ", paramIdx, paramName);
+			}*/
+
+			for (ULONG i = 0; i < argInfo->numRanges && i < typeMethod->paramCount; i++)
+			{
+				TypeInfo* paramType = typeMethod->paramTypes[i];
+				COR_PRF_FUNCTION_ARGUMENT_RANGE argRange = argInfo->ranges[i];
+
+				string typeName = paramType->GetTypeName();
+				char argValue[128] = { 0 };
+				Utils::GetParamterValueStr(&argRange, paramType->type, argValue, sizeof(argValue));
+				
+				log.append(typeName);
+				log.append(1, ':');
+				log.append(argValue);
+				if (i != typeMethod->paramCount - 1)
+					log.append(", ");
+			}
+
+			delete[] logBuf;
+		}
+		
+		log.append(1, ')');
+		logger->WriteLine(log.c_str(), log.length());
+
+		metadata->Release();
+		free(argInfo);
 	}
-	else //not in the main module
-	{
-		int diff = callLevel - lastUserSpaceLevel;
-		if(diff == 0 || diff == 1) //calling external function from the main module, print it
-			PrintFuncInfo(funcID, classID, argumentInfo);
-	}
+
+	if (moduleID == mainModuleID)
+		lastUserSpaceLevel = callLevel;	
 }
 
 
-void Tracer::FunctionLeave(FunctionID funcID, UINT_PTR clientData, COR_PRF_FRAME_INFO func, COR_PRF_FUNCTION_ARGUMENT_INFO* argumentInfo)
+void Tracer::FunctionLeave(FunctionID funcID, COR_PRF_ELT_INFO eltInfo)
 {
-	//wchar_t* funcName = NULL;
-	//int nameLen = Utils::GetFunctionNameById(iCorProfilerInfo, funcID, &funcName);
-	//printf("%d %d leave %ls\n", callLevel, lastUserSpaceLevel, funcName);
+	//get id of module and class
+	ClassID classID;
+	ModuleID moduleID;
+	iCorProfilerInfo->GetFunctionInfo(funcID, &classID, &moduleID, NULL);
+
+	int levelDiff = callLevel - lastUserSpaceLevel;
+	if (moduleID == mainModuleID || levelDiff == 0 || levelDiff == 1) // in the main module
+	{
+		//get return value info
+		COR_PRF_FRAME_INFO frameInfo;
+		COR_PRF_FUNCTION_ARGUMENT_RANGE retRange;
+		HRESULT result2 = iCorProfilerInfo->GetFunctionLeave3Info(funcID, eltInfo, &frameInfo, &retRange);
+
+		//get method token and metadata
+		mdMethodDef methodToken;
+		IMetaDataImport* metadata;
+		iCorProfilerInfo->GetTokenAndMetaDataFromFunction(funcID, IID_IMetaDataImport, (IUnknown**)&metadata, &methodToken);
+
+		//get class name, method name
+		wchar_t className[128] = { 0 };
+		wchar_t methodName[128] = { 0 };
+		PCCOR_SIGNATURE signature;
+		ULONG sigSize;
+		ULONG methodNameLen;
+		HRESULT methodPropResult = metadata->GetMethodProps(methodToken, NULL, methodName, sizeof(methodName) / sizeof(wchar_t), &methodNameLen, NULL, &signature, &sigSize, NULL, NULL);
+		if (methodPropResult != S_OK)
+			return;
+		ULONG  classNameLen = Utils::GetClassNameByClassId(iCorProfilerInfo, classID, className, sizeof(className) / sizeof(wchar_t));
+		if (classNameLen == -1)
+			return;
+
+		//whether print prefix tabs or not
+		char prefix[64] = { '\t' };
+		if (callLevel >= 0)
+			prefix[callLevel] = 0;
+
+	
+		//try read string from return value
+		char* logBuf = NULL;
+		int logLen = 0;
+		wchar_t retStr[128] = { 0 };
+		int bytesRead = Utils::TryGetStrFromRetRange(&retRange, retStr, sizeof(retStr));
+		if (bytesRead != -1)
+		{
+			size_t logBufSize = callLevel + 1 + classNameLen + 1 + methodNameLen + 16 + bytesRead;
+			logBuf = new char[logBufSize];
+			logLen = snprintf(logBuf, logBufSize, "%s%ls.%ls returns %ls", prefix, className, methodName, retStr);
+		}
+		else
+		{
+			if (retRange.length > 0)
+			{
+				size_t logBufSize = callLevel + 1 + classNameLen + 1 + methodNameLen + 16 + retRange.length * 3;
+				logBuf = new char[logBufSize];
+				char* retHexStr = new char[retRange.length * 3];
+				for (ULONG i = 0; i < retRange.length; i++)
+					sprintf(retHexStr + i * 3, "%02x ", *(BYTE*)(retRange.startAddress + i));
+				logLen = snprintf(logBuf, logBufSize, "%s%ls.%ls returns %s", prefix, className, methodName, retHexStr);
+				delete[] retHexStr;
+			}
+		}
+
+		if(logLen > 0)
+			logger->WriteLine(logBuf, logLen);
+
+		delete[] logBuf;
+
+		metadata->Release();
+	}
+
+
 	callLevel--;
 }
 
 
-void Tracer::FunctionTail(FunctionID funcID, UINT_PTR clientData, COR_PRF_FRAME_INFO func)
+void Tracer::FunctionTail(FunctionID funcID, COR_PRF_ELT_INFO eltInfo)
 {
-	//wchar_t* funcName = NULL;
-	//int nameLen = Utils::GetFunctionNameById(iCorProfilerInfo, funcID, &funcName);
-	//printf("%d %d tail %ls\n", callLevel, lastUserSpaceLevel, funcName);
-	callLevel--;
+	/*wchar_t* funcName = NULL;
+	int nameLen = Utils::GetFunctionNameById(iCorProfilerInfo, funcID, &funcName);
+	printf("%d %d tail %ls\n", callLevel, lastUserSpaceLevel, funcName);
+	callLevel--;*/
 }

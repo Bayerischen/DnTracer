@@ -21,8 +21,8 @@ void ProfilerCallback::FinalRelease()
 HRESULT __stdcall ProfilerCallback::Initialize(IUnknown* pICorProfilerInfoUnk)
 {
 	//Get interface
-	CComQIPtr<ICorProfilerInfo2> iCorProfilerInfo;
-	pICorProfilerInfoUnk->QueryInterface(IID_ICorProfilerInfo2, (LPVOID*)&iCorProfilerInfo);
+	CComQIPtr<ICorProfilerInfo3> iCorProfilerInfo;
+	pICorProfilerInfoUnk->QueryInterface(IID_ICorProfilerInfo3, (LPVOID*)&iCorProfilerInfo);
 	
 	//Init tracer, register Fn Entry/Leave callbacks
 	tracer = new Tracer(iCorProfilerInfo);
@@ -414,6 +414,21 @@ HRESULT __stdcall ProfilerCallback::HandleCreated(GCHandleID handleID, ObjectID 
 }
 
 HRESULT __stdcall ProfilerCallback::HandleDestroyed(GCHandleID handleID)
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::InitializeForAttach(IUnknown* pCorProfilerInfoUnk, void* pvClientData, UINT cbClientData)
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::ProfilerAttachComplete()
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::ProfilerDetachSucceeded()
 {
 	return S_OK;
 }

@@ -4,7 +4,7 @@
 #include "ProfilingDll_i.h"
 
 
-class ATL_NO_VTABLE ProfilerCallback : public CComObjectRootEx<CComSingleThreadModel>, public CComCoClass<ProfilerCallback, &CLSID_NetProfiler>, public ICorProfilerCallback2
+class ATL_NO_VTABLE ProfilerCallback : public CComObjectRootEx<CComSingleThreadModel>, public CComCoClass<ProfilerCallback, &CLSID_NetProfiler>, public ICorProfilerCallback3
 {
 public:
     ProfilerCallback();
@@ -99,6 +99,11 @@ public:
     virtual HRESULT __stdcall RootReferences2(ULONG cRootRefs, ObjectID rootRefIds[], COR_PRF_GC_ROOT_KIND rootKinds[], COR_PRF_GC_ROOT_FLAGS rootFlags[], UINT_PTR rootIds[]);
     virtual HRESULT __stdcall HandleCreated(GCHandleID handleId, ObjectID initialObjectId);
     virtual HRESULT __stdcall HandleDestroyed(GCHandleID handleId);
+
+    // ICorProfilerCallback3 interface implementation
+    virtual HRESULT __stdcall InitializeForAttach(IUnknown* pCorProfilerInfoUnk, void* pvClientData, UINT cbClientData);
+    virtual HRESULT __stdcall ProfilerAttachComplete();
+    virtual HRESULT __stdcall ProfilerDetachSucceeded();
 };
 
 OBJECT_ENTRY_AUTO(__uuidof(NetProfiler), ProfilerCallback)

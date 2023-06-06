@@ -9,18 +9,17 @@ class Tracer
 public:
 	ModuleID mainModuleID = -1;
 
-	Tracer(ICorProfilerInfo2* info);
+	Tracer(ICorProfilerInfo3* info);
 	void Init();
 
 	void ModuleLoaded(ModuleID moduleID);
 
-	void PrintFuncInfo(FunctionID funcID, ClassID classID, COR_PRF_FUNCTION_ARGUMENT_INFO* argumentInfo);
-	void FunctionEnter(FunctionID funcID, UINT_PTR clientData, COR_PRF_FRAME_INFO func, COR_PRF_FUNCTION_ARGUMENT_INFO* argumentInfo);
-	void FunctionLeave(FunctionID funcID, UINT_PTR clientData, COR_PRF_FRAME_INFO func, COR_PRF_FUNCTION_ARGUMENT_INFO* argumentInfo);
-	void FunctionTail(FunctionID funcID, UINT_PTR clientData, COR_PRF_FRAME_INFO func);
+	void FunctionEnter(FunctionID funcID, COR_PRF_ELT_INFO eltInfo);
+	void FunctionLeave(FunctionID funcID, COR_PRF_ELT_INFO eltInfo);
+	void FunctionTail(FunctionID funcID, COR_PRF_ELT_INFO eltInfo);
 
 private:
-	ICorProfilerInfo2* iCorProfilerInfo;
+	ICorProfilerInfo3* iCorProfilerInfo;
 
 	Logger* logger;
 	SigParser* sigParser;
